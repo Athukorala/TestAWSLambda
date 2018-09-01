@@ -13,8 +13,8 @@ public class MainHandler implements RequestHandler<TestInputDTO ,TestOutputDTO>{
     @Override
     public TestOutputDTO handleRequest(TestInputDTO testInputDTO, Context context) {
         TestOutputDTO dto=new TestOutputDTO();
-        dto.setMsg(testInputDTO.getName());
-        dto.setFunctionName(context.getFunctionName());
+        dto.setMsg("Hi "+testInputDTO.getName());
+        dto.setFunctionName("func "+context.getFunctionName());
         dto.setMemoryLimit(context.getMemoryLimitInMB());
 
         context.getLogger().log(testInputDTO.getName()+" calling...");

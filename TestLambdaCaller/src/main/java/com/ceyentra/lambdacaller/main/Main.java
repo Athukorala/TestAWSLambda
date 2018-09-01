@@ -29,6 +29,9 @@ public class Main {
         dto.setName(name);
         InvokeRequest invokeRequest=new InvokeRequest().withFunctionName("testLambdaFunc").withPayload(gson.toJson(dto));
         InvokeResult result= client.invoke(invokeRequest);
+        System.out.println(client);
+        System.out.println(invokeRequest);
+
         String s = StandardCharsets.UTF_8.decode(result.getPayload()).toString();
         TestOutputDTO outputDTO = gson.fromJson(s, TestOutputDTO.class);
 

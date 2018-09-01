@@ -13,6 +13,7 @@
     </properties>
     
     <dependencies>
+
         <!-- https://mvnrepository.com/artifact/com.amazonaws/aws-lambda-java-core -->
         <dependency>
             <groupId>com.amazonaws</groupId>
@@ -52,5 +53,4 @@
             </plugin>
         </plugins>
     </build>
-    
 </project>
