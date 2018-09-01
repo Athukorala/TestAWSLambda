@@ -4,7 +4,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectResult;
@@ -21,131 +21,136 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-public class Resizer implements RequestHandler<ResizerInputDTO, String> {
+public class Resizer implements RequestHandler<ResizerInputDTO, String>
+{
 
     AmazonS3 s3client;
-
     @Override
-    public String handleRequest(ResizerInputDTO dto, Context context) {
-        String resizeUrl = createUrl(dto, context);
-        if(!alreadyExists(resizeUrl)){
-            BufferedImage originalImage =readImage(dto, context);
-            if(originalImage != null){
-                InputStream resizeImage = resizeImage(originalImage , dto, context);
-                if(resizeImage != null){
-                    if(!storeImage(resizeImage , resizeUrl , context)){
+    public String handleRequest(ResizerInputDTO i, Context cntxt)
+    {
+        String resizedurl = createUrl(i, cntxt);
+        if (!alreadyExists(resizedurl)) {
+            BufferedImage originalImage = readImage(i, cntxt);
+            if (originalImage != null) {
+                InputStream resizedImage = resizeImage(originalImage, i, cntxt);
+                if (resizedImage != null) {
+                    if (!storeImageInS3(resizedImage, resizedurl, cntxt)) {
                         return "Failed to store image in S3";
-                    }else{
-                        return resizeUrl;
+                    }
+                    else {
+                        return resizedurl;
                     }
                 }
-                else{
+                else {
                     return "Failed to resize Image";
                 }
             }
-            else{
-                return "Failed to read Original image";
+            else {
+                return "Failed to read Original Image";
             }
         }
 
-        return resizeUrl;
+        return resizedurl;
+
     }
-
-    public String createUrl(ResizerInputDTO dto, Context context) {
-
-        String resizeUrl = "";
+    private String createUrl(ResizerInputDTO i, Context cntxt)
+    {
+        String resizedUrl = "";
         String publicUrl = System.getenv("publicurl");
-        String fullHash = "" + Math.abs(dto.getUrl().hashCode());
+        String fullHash = "" + Math.abs(i.getUrl().hashCode());
         String fileName = "";
-
         try {
-            fileName = Paths.get(new URI("").getPath()).getFileName().toString();
-
-
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
-            context.getLogger().log("unable to create url : " + dto.getUrl() + " , " + e.getMessage());
+            fileName = Paths.get(new URI(i.getUrl()).getPath()).getFileName().toString();
         }
-        resizeUrl = publicUrl + fileName + " - " + fullHash + " - " + dto.getWidth() + " - " + dto.getHeight();
-
-        return resizeUrl;
+        catch (URISyntaxException ex) {
+            cntxt.getLogger().log("Unable to create url : " + i.getUrl() + " " + ex.getMessage());
+        }
+        resizedUrl = publicUrl + fileName + "-" + fullHash + "-" + i.getWidth() + "-" + i.getHeight();
+        return resizedUrl;
     }
 
-    private BufferedImage readImage(ResizerInputDTO dto , Context context) {
+    private BufferedImage readImage(ResizerInputDTO i, Context cntxt)
+    {
         try {
-            return ImageIO.read(new URL(dto.getUrl()).openStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-            context.getLogger().log("Failed to read original url : " + dto.getUrl() + " , " + e.getMessage());
+            return ImageIO.read(new URL(i.getUrl()).openStream());
+        }
+        catch (IOException ex) {
+            cntxt.getLogger().log("Failed to read original url " + i.getUrl() + " " + ex.getMessage());
             return null;
         }
     }
 
-    private InputStream resizeImage(BufferedImage image , ResizerInputDTO dto, Context context){
-        try{
-            BufferedImage img=Scalr.resize(image, Scalr.Method.BALANCED , Scalr.Mode.AUTOMATIC , dto.getWidth());
+    private InputStream resizeImage(BufferedImage image, ResizerInputDTO i, Context cntxt)
+    {
+        try {
+            BufferedImage img = Scalr.resize(image, Scalr.Method.BALANCED, Scalr.Mode.AUTOMATIC, i.getWidth(), i.getHeight(), Scalr.OP_ANTIALIAS);
             ByteArrayOutputStream os = new ByteArrayOutputStream();
-            ImageIO.write(img , "gif" , os);
+            ImageIO.write(img, "gif", os);
             InputStream is = new ByteArrayInputStream(os.toByteArray());
             return is;
         }
-        catch (IOException e){
-            e.printStackTrace();
-            context.getLogger().log("Image resizing failed... : " + dto.getUrl() + " , " + e.getMessage());
+        catch (IOException ex) {
+            cntxt.getLogger().log("Image Resizing failed : " + i.getUrl() + " " + ex.getMessage());
             return null;
         }
     }
 
-    private AmazonS3 getS3Client(){
-        if(s3client == null){
-            s3client = new AmazonS3Client();
+    private AmazonS3 getS3Client()
+    {
+        if (s3client == null) {
+            s3client = AmazonS3ClientBuilder.defaultClient();
         }
         return s3client;
     }
 
-    private String getS3Key(String resizeUrl){
+    private String getS3Key(String resizedUrl)
+    {
         try {
-            return Paths.get(new URI(resizeUrl).getPath()).getFileName().toString();
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+            return Paths.get(new URI(resizedUrl).getPath()).getFileName().toString();
+        }
+        catch (URISyntaxException ex) {
             return "";
         }
     }
 
-    private Boolean storeImage(InputStream is , String resizeUrl , Context context){
-        String s3Key = getS3Key(resizeUrl);
+    private Boolean storeImageInS3(InputStream is, String resizedUrl, Context cntxt)
+    {
+        String s3Key = getS3Key(resizedUrl);
         String bucketName = System.getenv("bucketname");
-        File tempFile =null;
-
-        try{
-            tempFile = File.createTempFile(UUID.randomUUID().toString(), "gif");
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile(UUID.randomUUID().toString(), ".gif");
             FileUtils.copyInputStreamToFile(is, tempFile);
-            PutObjectRequest por = new PutObjectRequest(bucketName , s3Key ,tempFile).withCannedAcl(CannedAccessControlList.PublicRead);
+            PutObjectRequest por = new PutObjectRequest(bucketName, s3Key, tempFile).withCannedAcl(CannedAccessControlList.PublicRead);
             PutObjectResult res = getS3Client().putObject(por);
-            context.getLogger().log("Stored in s3 : "+bucketName+" / "+ s3Key);
-
+            cntxt.getLogger().log("Stored in s3 " + bucketName + "/" + s3Key);
         }
-        catch (IOException e){
-            e.printStackTrace();
-            context.getLogger().log("Error creating temp file : "+e.getMessage());
+        catch (IOException ex) {
+            cntxt.getLogger().log("Error creating temp file : " + ex.getMessage());
             return false;
         }
         finally {
-            if(tempFile != null){
+            if (tempFile != null) {
                 tempFile.delete();
+
             }
         }
         return true;
+
     }
 
-    private Boolean alreadyExists(String resizeUrl){
-        String bucketName = System.getenv("bucketname");
-        try{
-            getS3Client().getObjectMetadata(bucketName, getS3Key(resizeUrl));
+    private Boolean alreadyExists(String resizedUrl)
+    {
+        String bucketname = System.getenv("bucketname");
+        try {
+            getS3Client().getObjectMetadata(bucketname, getS3Key(resizedUrl));
         }
-        catch (AmazonServiceException e){
+        catch (AmazonServiceException e) {
             return false;
         }
         return true;
     }
+
+
 }
+
