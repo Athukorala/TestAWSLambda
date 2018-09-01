@@ -114,7 +114,7 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String> {
 
     private Boolean storeImage(InputStream is , String resizeUrl , Context context){
         String s3Key = getS3Key(resizeUrl);
-        String bucketName = System.getenv("bucketName");
+        String bucketName = System.getenv("bucketname");
         File tempFile =null;
 
         try{
