@@ -21,13 +21,11 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-public class Resizer implements RequestHandler<ResizerInputDTO, String>
-{
+public class Resizer implements RequestHandler<ResizerInputDTO, String>{
 
     AmazonS3 s3client;
     @Override
-    public String handleRequest(ResizerInputDTO i, Context cntxt)
-    {
+    public String handleRequest(ResizerInputDTO i, Context cntxt){
         String resizedurl = createUrl(i, cntxt);
         if (!alreadyExists(resizedurl)) {
             BufferedImage originalImage = readImage(i, cntxt);
@@ -53,8 +51,8 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         return resizedurl;
 
     }
-    private String createUrl(ResizerInputDTO i, Context cntxt)
-    {
+    private String createUrl(ResizerInputDTO i, Context cntxt){
+
         String resizedUrl = "";
         String publicUrl = System.getenv("publicurl");
         String fullHash = "" + Math.abs(i.getUrl().hashCode());
@@ -69,8 +67,7 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         return resizedUrl;
     }
 
-    private BufferedImage readImage(ResizerInputDTO i, Context cntxt)
-    {
+    private BufferedImage readImage(ResizerInputDTO i, Context cntxt){
         try {
             return ImageIO.read(new URL(i.getUrl()).openStream());
         }
@@ -80,8 +77,7 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         }
     }
 
-    private InputStream resizeImage(BufferedImage image, ResizerInputDTO i, Context cntxt)
-    {
+    private InputStream resizeImage(BufferedImage image, ResizerInputDTO i, Context cntxt){
         try {
             BufferedImage img = Scalr.resize(image, Scalr.Method.BALANCED, Scalr.Mode.AUTOMATIC, i.getWidth(), i.getHeight(), Scalr.OP_ANTIALIAS);
             ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -95,16 +91,14 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         }
     }
 
-    private AmazonS3 getS3Client()
-    {
+    private AmazonS3 getS3Client(){
         if (s3client == null) {
             s3client = AmazonS3ClientBuilder.defaultClient();
         }
         return s3client;
     }
 
-    private String getS3Key(String resizedUrl)
-    {
+    private String getS3Key(String resizedUrl){
         try {
             return Paths.get(new URI(resizedUrl).getPath()).getFileName().toString();
         }
@@ -113,8 +107,8 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         }
     }
 
-    private Boolean storeImageInS3(InputStream is, String resizedUrl, Context cntxt)
-    {
+    private Boolean storeImageInS3(InputStream is, String resizedUrl, Context cntxt){
+        
         String s3Key = getS3Key(resizedUrl);
         String bucketName = System.getenv("bucketname");
         File tempFile = null;
@@ -132,15 +126,12 @@ public class Resizer implements RequestHandler<ResizerInputDTO, String>
         finally {
             if (tempFile != null) {
                 tempFile.delete();
-
             }
         }
         return true;
-
     }
 
-    private Boolean alreadyExists(String resizedUrl)
-    {
+    private Boolean alreadyExists(String resizedUrl){
         String bucketname = System.getenv("bucketname");
         try {
             getS3Client().getObjectMetadata(bucketname, getS3Key(resizedUrl));
